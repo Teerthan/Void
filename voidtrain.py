@@ -1,0 +1,125 @@
+from pyrogram import Client, filters
+import asyncio
+from flask import Flask
+from threading import Thread
+import os
+
+app = Client(
+    "voidtrain",
+    api_id=2912653,
+    api_hash="36a616c83fb35db05d768b40cd18242b"
+)
+
+web = Flask(__name__)
+
+
+@web.route("/")
+def home():
+    return "OK"
+
+
+
+
+def run_web():
+    port = int(os.environ.get("PORT", 8080))
+    web.run(host="0.0.0.0", port=port)
+
+
+BOT_USER = "PokepiaBot"
+CHAT_ID = -1004458578418
+TEAM_MESSAGE_ID = 26
+
+button_names = {
+    "/exp": "Team 9",
+    "/hp": "Team 9",
+    "/spe": "Team 8",
+    "/spd": "Team 7",
+    "/def": "Team 6",
+    "/spa": "Team 5",
+    "/atk": "Team 4"
+}
+
+
+async def train_function(client, message):
+    text = message.text or message.caption or ""
+    print(text)
+    print(message.id)
+
+    if text.startswith("/"):
+        command = text.split()[0].lower()
+
+        if command in button_names:
+            button = button_names[command]
+
+            msg = await client.get_messages(
+                BOT_USER,
+                TEAM_MESSAGE_ID
+            )
+
+            if not msg or not msg.reply_markup:
+                print("Team keyboard not found")
+                return
+
+            try:
+                await msg.click(button)
+                print(f"Clicked {button}")
+
+                await message.reply(
+                    f"{button} → {command.replace('/', '').upper()}\n\n"
+                    f"Ready for battle.\n"
+                    f"Send a challenge to begin."
+                )
+
+            except Exception as e:
+                print(f"Failed to click {button}: {e}")
+
+            return
+
+    if (
+        "∅" in text
+        and any(
+            word in text
+            for word in [
+                "challenges",
+                "Current turn: ∅",
+                "∅'s Pokemon fainted!"
+            ]
+        )
+        and message.reply_markup
+    ):
+        print("clicked")
+        print(text)
+
+        sleep_time = 3 if "fainted" in text.lower() else 1.5
+
+        await asyncio.sleep(sleep_time)
+        await message.click(0)
+
+
+@app.on_message(
+    filters.chat(CHAT_ID)
+    & filters.command(["exp", "hp", "spe", "spd", "def", "spa", "atk"])
+)
+async def command_handler(client, message):
+    await train_function(client, message)
+
+
+@app.on_message(
+    filters.incoming
+    & filters.user(BOT_USER)
+    & filters.chat(CHAT_ID)
+)
+async def new_message(client, message):
+    await train_function(client, message)
+
+
+@app.on_edited_message(
+    filters.incoming
+    & filters.user(BOT_USER)
+    & filters.chat(CHAT_ID)
+)
+async def edited_message(client, message):
+    await train_function(client, message)
+
+Thread(target=run_web, daemon=True).start()
+app.run()
